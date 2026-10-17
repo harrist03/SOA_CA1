@@ -1,5 +1,6 @@
 using System.Net;
 using System.Text;
+using Microsoft.Extensions.Caching.Memory;
 using Microsoft.Extensions.Configuration;
 using SOA_CA1.Services;
 
@@ -92,6 +93,71 @@ public class MarketDataServiceTests
         Assert.Equal(HttpStatusCode.OK, exception.StatusCode);
     }
 
+    [Fact]
+    public async Task GetQuoteAsync_ReturnsQuoteAndCachesIt()
+    {
+        const string responseJson = """
+            {
+              "c": 343.46,
+              "d": 1.46,
+              "dp": 0.4269,
+              "h": 347.82,
+              "l": 340.46,
+              "o": 346.085,
+              "pc": 342,
+              "t": 1792180800
+            }
+            """;
+
+        var handler = new StubHttpMessageHandler(responseJson);
+        var service = CreateService(handler);
+
+        var firstQuote = await service.GetQuoteAsync("aapl");
+        var secondQuote = await service.GetQuoteAsync("AAPL");
+
+        Assert.Equal(343.46m, firstQuote.C);
+        Assert.Same(firstQuote, secondQuote);
+        Assert.Equal(1, handler.CallCount);
+        Assert.Equal("api/v1/quote?symbol=AAPL&token=test-key", handler.RequestUri);
+    }
+
+    [Fact]
+    public async Task GetQuoteAsync_WhenQuoteHasZeroCurrentPrice_ThrowsApiException()
+    {
+        const string responseJson = """
+            {
+              "c": 0,
+              "d": null,
+              "dp": null,
+              "h": 0,
+              "l": 0,
+              "o": 0,
+              "pc": 0,
+              "t": 0
+            }
+            """;
+
+        var service = CreateService(new StubHttpMessageHandler(responseJson));
+
+        var exception = await Assert.ThrowsAsync<ApiException>(
+            () => service.GetQuoteAsync("INVALID"));
+
+        Assert.Equal("Finnhub", exception.Provider);
+        Assert.Equal(HttpStatusCode.OK, exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetQuoteAsync_WhenJsonIsMalformed_ThrowsApiException()
+    {
+        var service = CreateService(new StubHttpMessageHandler("{ malformed json"));
+
+        var exception = await Assert.ThrowsAsync<ApiException>(
+            () => service.GetQuoteAsync("AAPL"));
+
+        Assert.Equal("Finnhub", exception.Provider);
+        Assert.Null(exception.StatusCode);
+    }
+
     private static MarketDataService CreateService(StubHttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler)
@@ -106,7 +172,7 @@ public class MarketDataServiceTests
             })
             .Build();
 
-        return new MarketDataService(httpClient, configuration);
+        return new MarketDataService(httpClient, configuration, new MemoryCache(new MemoryCacheOptions()));
     }
 
     // Return controlled HTTP responses without calling Finnhub.
@@ -116,12 +182,14 @@ public class MarketDataServiceTests
     {
         public string? RequestUri { get; private set; }
         public bool WasCalled { get; private set; }
+        public int CallCount { get; private set; }
 
         protected override Task<HttpResponseMessage> SendAsync(
             HttpRequestMessage request,
             CancellationToken cancellationToken)
         {
             WasCalled = true;
+            CallCount++;
             RequestUri = request.RequestUri?.PathAndQuery.TrimStart('/');
 
             return Task.FromResult(new HttpResponseMessage(statusCode)
