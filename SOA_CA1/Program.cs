@@ -12,6 +12,7 @@ builder.Services.AddHttpClient<IMarketDataService, MarketDataService>(client =>
 builder.Services.AddHttpClient<ICurrencyService, CurrencyService>(client =>
     client.BaseAddress = new Uri("https://api.frankfurter.dev/v2/"));
 builder.Services.AddSingleton<IHoldingsRepository, HoldingsRepository>();
+builder.Services.AddScoped<IPortfolioService, PortfolioService>();
 
 var app = builder.Build();
 
