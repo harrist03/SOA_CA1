@@ -158,6 +158,58 @@ public class MarketDataServiceTests
         Assert.Null(exception.StatusCode);
     }
 
+    [Fact]
+    public async Task GetNewsAsync_ReturnsNewsArticlesForRequestedSymbol()
+    {
+        const string responseJson = """
+            [
+              {
+                "headline": "Apple reports strong demand",
+                "summary": "The company reported positive demand.",
+                "source": "Example News",
+                "url": "https://example.com/apple",
+                "datetime": 1792187374
+              }
+            ]
+            """;
+
+        var handler = new StubHttpMessageHandler(responseJson);
+        var service = CreateService(handler);
+
+        var articles = await service.GetNewsAsync("aapl", 7);
+
+        var article = Assert.Single(articles);
+        Assert.Equal("Apple reports strong demand", article.Headline);
+        Assert.StartsWith("api/v1/company-news?symbol=AAPL&from=", handler.RequestUri);
+        Assert.Contains("&to=", handler.RequestUri);
+        Assert.Contains("&token=test-key", handler.RequestUri);
+    }
+
+    [Fact]
+    public async Task GetNewsAsync_WhenJsonIsMalformed_ThrowsApiException()
+    {
+        var service = CreateService(new StubHttpMessageHandler("{ malformed json"));
+
+        var exception = await Assert.ThrowsAsync<ApiException>(
+            () => service.GetNewsAsync("AAPL"));
+
+        Assert.Equal("Finnhub", exception.Provider);
+        Assert.Null(exception.StatusCode);
+    }
+
+    [Fact]
+    public async Task GetNewsAsync_WhenRequestFails_ThrowsApiException()
+    {
+        var service = CreateService(
+            new StubHttpMessageHandler("[]", HttpStatusCode.TooManyRequests));
+
+        var exception = await Assert.ThrowsAsync<ApiException>(
+            () => service.GetNewsAsync("AAPL"));
+
+        Assert.Equal("Finnhub", exception.Provider);
+        Assert.Equal(HttpStatusCode.TooManyRequests, exception.StatusCode);
+    }
+
     private static MarketDataService CreateService(StubHttpMessageHandler handler)
     {
         var httpClient = new HttpClient(handler)
