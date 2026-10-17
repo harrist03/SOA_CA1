@@ -11,6 +11,7 @@ builder.Services.AddHttpClient<IMarketDataService, MarketDataService>(client =>
     client.BaseAddress = new Uri("https://finnhub.io/api/v1/"));
 builder.Services.AddHttpClient<ICurrencyService, CurrencyService>(client =>
     client.BaseAddress = new Uri("https://api.frankfurter.dev/v2/"));
+builder.Services.AddSingleton<IHoldingsRepository, HoldingsRepository>();
 
 var app = builder.Build();
 
