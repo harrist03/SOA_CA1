@@ -219,8 +219,24 @@
     background: none;
     border: 0;
     color: var(--brand);
+    cursor: pointer;
     font-size: 0.875rem;
     padding: 8px;
+}
+
+.action-button--destructive {
+    color: var(--loss);
+}
+
+.action-button:focus-visible {
+    outline: 2px solid var(--brand);
+    outline-offset: 2px;
+}
+
+.remove-confirmation {
+    color: var(--muted);
+    font-size: 0.875rem;
+    margin-right: 4px;
 }
 
 @media (max-width: 768px) {
