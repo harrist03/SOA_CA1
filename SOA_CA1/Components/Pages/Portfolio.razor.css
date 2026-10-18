@@ -30,6 +30,21 @@
     text-transform: uppercase;
 }
 
+.sortable-header {
+    background: none;
+    border: 0;
+    color: inherit;
+    cursor: pointer;
+    font: inherit;
+    padding: 0;
+    text-align: inherit;
+    text-transform: inherit;
+}
+
+.sortable-header:hover {
+    color: var(--brand);
+}
+
 .eyebrow {
     margin: 0 0 8px;
 }

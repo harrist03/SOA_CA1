@@ -166,7 +166,5 @@ public class PortfolioServiceTests
             return Task.FromResult(rate);
         }
 
-        public Task<IReadOnlyList<string>> GetCurrenciesAsync() =>
-            throw new NotSupportedException();
     }
 }
