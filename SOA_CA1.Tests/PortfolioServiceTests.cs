@@ -72,6 +72,31 @@ public class PortfolioServiceTests
         Assert.Equal(["MSFT", "AAPL"], sorted.Select(holding => holding.Symbol));
     }
 
+    [Theory]
+    [InlineData("Quantity", false, "AAPL", "MSFT")]
+    [InlineData("Quantity", true, "MSFT", "AAPL")]
+    [InlineData("BuyPrice", false, "AAPL", "MSFT")]
+    [InlineData("BuyPrice", true, "MSFT", "AAPL")]
+    [InlineData("CurrentPrice", false, "AAPL", "MSFT")]
+    [InlineData("CurrentPrice", true, "MSFT", "AAPL")]
+    public void Sort_OrdersByAdditionalHoldingFields(
+        string sortField,
+        bool descending,
+        string firstSymbol,
+        string secondSymbol)
+    {
+        var apple = CreateHolding("AAPL", 1m, 100m);
+        apple.Quote = CreateQuote(120m);
+        var microsoft = CreateHolding("MSFT", 2m, 200m);
+        microsoft.Quote = CreateQuote(150m);
+
+        var service = CreateService(new Portfolio(), new Dictionary<string, StockQuote>());
+
+        var sorted = service.Sort([apple, microsoft], sortField, descending).ToArray();
+
+        Assert.Equal([firstSymbol, secondSymbol], sorted.Select(holding => holding.Symbol));
+    }
+
     [Fact]
     public void Sort_WhenFieldIsInvalid_ThrowsArgumentException()
     {

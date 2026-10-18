@@ -53,6 +53,19 @@ public sealed class PortfolioService(
             SortField.GainLossPercent => descending
                 ? holdings.OrderByDescending(holding => holding.GainLossPercent ?? decimal.MinValue)
                 : holdings.OrderBy(holding => holding.GainLossPercent ?? decimal.MaxValue),
+            SortField.Quantity => descending
+                ? holdings.OrderByDescending(holding => holding.Quantity)
+                : holdings.OrderBy(holding => holding.Quantity),
+            SortField.BuyPrice => descending
+                ? holdings.OrderByDescending(holding => holding.BuyPrice * holding.FxRate)
+                : holdings.OrderBy(holding => holding.BuyPrice * holding.FxRate),
+            SortField.CurrentPrice => descending
+                ? holdings.OrderByDescending(holding => holding.Quote is null
+                    ? decimal.MinValue
+                    : holding.Quote.C * holding.FxRate)
+                : holdings.OrderBy(holding => holding.Quote is null
+                    ? decimal.MaxValue
+                    : holding.Quote.C * holding.FxRate),
             _ => throw new ArgumentException("An invalid holding sort field was provided.", nameof(sortBy))
         };
     }
