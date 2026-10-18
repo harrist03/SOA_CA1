@@ -4,7 +4,7 @@ using SOA_CA1.Models;
 
 namespace SOA_CA1.Services;
 
-public class MarketDataService
+public class MarketDataService : IMarketDataService
 {
     private const string ProviderName = "Finnhub";
     private static readonly TimeSpan QuoteCacheDuration = TimeSpan.FromMinutes(5);
@@ -121,6 +121,58 @@ public class MarketDataService
         {
             throw new ApiException(ProviderName, null,
                 "Finnhub returned malformed stock quote data.");
+        }
+        catch (HttpRequestException)
+        {
+            throw new ApiException(ProviderName, null,
+                "Finnhub could not be reached.");
+        }
+    }
+
+    public async Task<IReadOnlyList<NewsArticle>> GetNewsAsync(string symbol, int days = 7)
+    {
+        if (string.IsNullOrWhiteSpace(symbol))
+        {
+            throw new ApiException(ProviderName, null, "A stock symbol is required.");
+        }
+
+        if (days <= 0)
+        {
+            throw new ApiException(ProviderName, null, "The news period must be greater than zero days.");
+        }
+
+        var normalizedSymbol = symbol.Trim().ToUpperInvariant();
+        // Get news articles from the x days ago
+        var to = DateOnly.FromDateTime(DateTime.UtcNow);
+        var from = to.AddDays(-days);
+        var requestUri =
+            $"company-news?symbol={Uri.EscapeDataString(normalizedSymbol)}" +
+            $"&from={from:yyyy-MM-dd}&to={to:yyyy-MM-dd}" +
+            $"&token={Uri.EscapeDataString(apiKey)}";
+
+        try
+        {
+            using var response = await httpClient.GetAsync(requestUri);
+            if (!response.IsSuccessStatusCode)
+            {
+                throw new ApiException(ProviderName, response.StatusCode,
+                    "Finnhub could not retrieve company news.");
+            }
+
+            await using var responseStream = await response.Content.ReadAsStreamAsync();
+            var articles = await JsonSerializer.DeserializeAsync<List<NewsArticle>>(responseStream);
+            if (articles is null)
+            {
+                throw new ApiException(ProviderName, response.StatusCode,
+                    "Finnhub returned an invalid company news response.");
+            }
+
+            return articles;
+        }
+        catch (JsonException)
+        {
+            throw new ApiException(ProviderName, null,
+                "Finnhub returned malformed company news data.");
         }
         catch (HttpRequestException)
         {

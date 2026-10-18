@@ -1,0 +1,174 @@
+@page "/stock/{Symbol}"
+@rendermode InteractiveServer
+@using System.Globalization
+@using SOA_CA1.Models
+@using SOA_CA1.Services
+@inject IMarketDataService MarketDataService
+@inject ICurrencyService CurrencyService
+@inject CurrencyPreference CurrencyPreference
+
+<PageTitle>@Symbol | SOA Portfolio</PageTitle>
+
+<section class="stock-detail-page" aria-labelledby="stock-heading">
+    <a class="back-link" href="/">← Back to portfolio</a>
+
+    @if (isLoading)
+    {
+        <p role="status">Loading @Symbol data...</p>
+    }
+    else
+    {
+        <header class="stock-detail-heading">
+            <div>
+                <p class="eyebrow">Stock detail</p>
+                <h1 id="stock-heading">@Symbol</h1>
+            </div>
+            @if (quote is not null)
+            {
+                <div class="stock-price">
+                    <span class="stock-price__value">@FormatMoney(quote.C)</span>
+                    <span class="@GetChangeClass(quote.D)">
+                        @FormatChange(quote.D) (@FormatPercent(quote.Dp))
+                    </span>
+                </div>
+            }
+        </header>
+
+        @if (quoteError is not null)
+        {
+            <div class="alert alert-warning" role="alert">@quoteError</div>
+        }
+        else if (quote is not null)
+        {
+            <article class="quote-card" aria-label="Daily quote">
+                <div>
+                    <span>Open</span>
+                    <strong>@FormatMoney(quote.O)</strong>
+                </div>
+                <div>
+                    <span>Previous close</span>
+                    <strong>@FormatMoney(quote.Pc)</strong>
+                </div>
+                <div>
+                    <span>Day high</span>
+                    <strong>@FormatMoney(quote.H)</strong>
+                </div>
+                <div>
+                    <span>Day low</span>
+                    <strong>@FormatMoney(quote.L)</strong>
+                </div>
+            </article>
+        }
+
+        <div class="news-heading">
+            <h2>Recent news</h2>
+            <span class="text-muted">Last 7 days</span>
+        </div>
+
+        @if (newsError is not null)
+        {
+            <div class="alert alert-warning" role="alert">@newsError</div>
+        }
+        else if (news.Count == 0)
+        {
+            <p class="text-muted">No recent news was found for @Symbol.</p>
+        }
+        else
+        {
+            <div class="news-list">
+                @foreach (var article in news)
+                {
+                    <article class="news-card">
+                        <p class="news-card__meta">
+                            @article.Source · @FormatArticleDate(article.Datetime)
+                        </p>
+                        <h3><a href="@article.Url" target="_blank" rel="noopener noreferrer">@article.Headline</a></h3>
+                        <p>@article.Summary</p>
+                    </article>
+                }
+            </div>
+        }
+    }
+</section>
+
+@code {
+    [Parameter]
+    public string Symbol { get; set; } = "";
+
+    private StockQuote? quote;
+    private IReadOnlyList<NewsArticle> news = Array.Empty<NewsArticle>();
+    private string? quoteError;
+    private string? newsError;
+    private bool isLoading = true;
+    private string displayCurrency = "USD";
+    private decimal fxRate = 1m;
+
+    protected override async Task OnInitializedAsync()
+    {
+        var normalizedSymbol = Symbol.Trim().ToUpperInvariant();
+        displayCurrency = CurrencyPreference.CurrentCurrency;
+        if (string.IsNullOrWhiteSpace(normalizedSymbol))
+        {
+            quoteError = "A stock symbol is required.";
+            newsError = "A stock symbol is required.";
+            isLoading = false;
+            return;
+        }
+
+        try
+        {
+            if (displayCurrency != "USD")
+            {
+                fxRate = await CurrencyService.GetRateAsync("USD", displayCurrency);
+            }
+        }
+        catch (ApiException)
+        {
+            quoteError = "The current quote is unavailable in the selected currency.";
+        }
+
+        var quoteTask = LoadQuoteAsync(normalizedSymbol);
+        var newsTask = LoadNewsAsync(normalizedSymbol);
+        await Task.WhenAll(quoteTask, newsTask);
+        isLoading = false;
+    }
+
+    private async Task LoadQuoteAsync(string symbol)
+    {
+        try
+        {
+            quote = await MarketDataService.GetQuoteAsync(symbol);
+        }
+        catch (ApiException)
+        {
+            quoteError = "The current quote is unavailable.";
+        }
+    }
+
+    private async Task LoadNewsAsync(string symbol)
+    {
+        try
+        {
+            news = await MarketDataService.GetNewsAsync(symbol);
+        }
+        catch (ApiException)
+        {
+            newsError = "Recent news is unavailable.";
+        }
+    }
+
+    private string FormatChange(decimal? value) =>
+        value is null ? "Unavailable" : $"{(value >= 0 ? "▲ +" : "▼ ")}{FormatMoney(Math.Abs(value.Value))}";
+
+    private string FormatMoney(decimal value) =>
+        $"{(value < 0 ? "-" : "")}{CurrencyPreference.GetSymbol(displayCurrency)}{Math.Abs(value * fxRate).ToString("N2", CultureInfo.InvariantCulture)}";
+
+    private static string FormatPercent(decimal? value) =>
+        value is null ? "Unavailable" : $"{(value >= 0 ? "+" : "")}{value.Value:F2}%";
+
+    private static string GetChangeClass(decimal? value) =>
+        value is null ? "" : value >= 0 ? "gain" : "loss";
+
+    private static string FormatArticleDate(long timestamp) =>
+        DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime().ToString("dd MMM yyyy");
+}

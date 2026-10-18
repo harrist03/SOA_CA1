@@ -4,5 +4,8 @@ public enum SortField
 {
     Symbol,
     MarketValue,
-    GainLossPercent
+    GainLossPercent,
+    Quantity,
+    BuyPrice,
+    CurrentPrice
 }

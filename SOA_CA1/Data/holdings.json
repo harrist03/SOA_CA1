@@ -1,0 +1,30 @@
+{
+  "name": "My Portfolio",
+  "dateCreated": "2026-10-01T10:00:00Z",
+  "holdings": [
+    {
+      "id": "3f2c0e5a-8a41-4c57-9d3e-1b7a6c2f4e10",
+      "symbol": "AAPL",
+      "name": "Apple Inc.",
+      "quantity": 10,
+      "buyPrice": 187.50,
+      "dateBought": "2026-09-03"
+    },
+    {
+      "id": "a91d7c44-52be-4f0a-b6c8-0d3e9f1a7b22",
+      "symbol": "MSFT",
+      "name": "Microsoft Corporation",
+      "quantity": 5,
+      "buyPrice": 410.00,
+      "dateBought": "2026-09-20"
+    },
+    {
+      "id": "6b7e8f90-1234-4abc-8def-567890abcdef",
+      "symbol": "NVDA",
+      "name": "NVIDIA Corporation",
+      "quantity": 8,
+      "buyPrice": 138.25,
+      "dateBought": "2026-10-05"
+    }
+  ]
+}

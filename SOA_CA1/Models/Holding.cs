@@ -1,13 +1,17 @@
 using System.Text.Json.Serialization;
+using System.ComponentModel.DataAnnotations;
 
 namespace SOA_CA1.Models;
 
 public class Holding : IComparable<Holding>
 {
     public Guid Id { get; set; } = Guid.NewGuid();
+    [Required]
     public string Symbol { get; set; } = "";
     public string Name { get; set; } = "";
+    [Range(typeof(decimal), "0.01", "100000000")]
     public decimal Quantity { get; set; }
+    [Range(typeof(decimal), "0.001", "100000000")]
     public decimal BuyPrice { get; set; }
     public DateOnly DateBought { get; set; }
     [JsonIgnore] public StockQuote? Quote { get; set; }

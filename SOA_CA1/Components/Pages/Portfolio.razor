@@ -1,0 +1,519 @@
+@page "/"
+@rendermode InteractiveServer
+@using System.Globalization
+@using SOA_CA1.Models
+@using SOA_CA1.Services
+@inject IPortfolioService PortfolioService
+@inject IMarketDataService MarketDataService
+@inject ICurrencyService CurrencyService
+@inject CurrencyPreference CurrencyPreference
+
+<PageTitle>Portfolio</PageTitle>
+
+@if (isLoading)
+{
+    <section class="portfolio-page" aria-labelledby="portfolio-heading">
+        <p role="status">Loading your portfolio...</p>
+    </section>
+}
+else if (errorMessage is not null)
+{
+    <section class="portfolio-page" aria-labelledby="portfolio-heading">
+        <div class="alert alert-danger" role="alert">
+            @errorMessage
+        </div>
+    </section>
+}
+else if (loadedPortfolio is null || loadedPortfolio.Holdings.Count == 0)
+{
+    <section class="portfolio-page" aria-labelledby="portfolio-heading">
+        <h1 id="portfolio-heading">My Portfolio</h1>
+        <p class="text-muted mb-0">No holdings have been added yet.</p>
+    </section>
+}
+else
+{
+var currentPortfolio = loadedPortfolio!;
+<section class="portfolio-page" aria-labelledby="portfolio-heading">
+@if (addSuccessMessage is not null)
+{
+    <div class="alert alert-success" role="status">@addSuccessMessage</div>
+}
+
+<div class="portfolio-heading">
+        <div>
+            <p class="eyebrow">Overview</p>
+            <h1 id="portfolio-heading">My Portfolio</h1>
+            <p class="text-muted mb-0">Track your holdings and performance in one place.</p>
+        </div>
+        <button class="btn btn-primary" type="button" @onclick="OpenAddHoldingModal">
+            Add holding
+        </button>
+    </div>
+
+    @if (showAddForm)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+             aria-labelledby="add-holding-heading">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <EditForm Model="newHolding" OnValidSubmit="AddHoldingAsync">
+                        <DataAnnotationsValidator />
+                        <div class="modal-header">
+                            <h2 class="modal-title fs-5" id="add-holding-heading">Add holding</h2>
+                            <button type="button" class="btn-close" aria-label="Close"
+                                    @onclick="() => showAddForm = false"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="d-grid gap-3">
+                                <div class="toolbar-field">
+                                    <label for="holding-symbol">Symbol</label>
+                                    <InputText id="holding-symbol" class="form-control" @bind-Value="newHolding.Symbol" />
+                                    <ValidationMessage For="() => newHolding.Symbol" />
+                                    <button class="btn btn-secondary holding-search-button" type="button"
+                                            @onclick="SearchStocksAsync" disabled="@isSearching">
+                                        @(isSearching ? "Searching..." : "Search stocks")
+                                    </button>
+                                </div>
+                                @if (searchErrorMessage is not null)
+                                {
+                                    <div class="alert alert-danger mb-0" role="alert">@searchErrorMessage</div>
+                                }
+                                else if (searchResults.Count > 0)
+                                {
+                                    <div class="holding-search-results" role="listbox" aria-label="Stock search results">
+                                        @foreach (var result in searchResults)
+                                        {
+                                            <button class="holding-search-result" type="button"
+                                                    @onclick="() => SelectSearchResult(result)">
+                                                <strong>@result.Symbol</strong>
+                                                <span>@result.Description</span>
+                                                <small>@result.Type</small>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                else if (hasSearched)
+                                {
+                                    <p class="text-muted mb-0">No matching stocks were found.</p>
+                                }
+                                @if (addErrorMessage is not null)
+                                {
+                                    <div class="alert alert-danger mb-0" role="alert">@addErrorMessage</div>
+                                }
+                                <div class="toolbar-field">
+                                    <label for="holding-quantity">Quantity</label>
+                                    <InputNumber id="holding-quantity" class="form-control" @bind-Value="newHolding.Quantity" />
+                                    <ValidationMessage For="() => newHolding.Quantity" />
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="holding-currency">Buy price currency</label>
+                                    <select id="holding-currency" class="form-select" @bind="newHoldingCurrency">
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="GBP">GBP</option>
+                                        <option value="CNY">CNY</option>
+                                        <option value="JPY">JPY</option>
+                                    </select>
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="holding-buy-price">Buy price (@newHoldingCurrency)</label>
+                                    <InputNumber id="holding-buy-price" class="form-control" @bind-Value="newHolding.BuyPrice" />
+                                    <ValidationMessage For="() => newHolding.BuyPrice" />
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="holding-date">Date bought</label>
+                                    <InputDate id="holding-date" class="form-control" @bind-Value="newHolding.DateBought" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">
+                                Cancel
+                            </button>
+                            <button class="btn btn-primary" type="submit" disabled="@isAdding">
+                                @(isAdding ? "Adding..." : "Continue")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+
+    <div class="summary-grid" aria-label="Portfolio summary">
+        <article class="summary-card">
+            <p class="summary-card__label">Total value</p>
+            <p class="summary-card__value num">@FormatMoney(currentPortfolio.TotalValue)</p>
+            <p class="summary-card__detail">@currentPortfolio.Holdings.Count holdings</p>
+        </article>
+        <article class="summary-card">
+            <p class="summary-card__label">Total cost</p>
+            <p class="summary-card__value num">@FormatMoney(currentPortfolio.TotalCost)</p>
+            <p class="summary-card__detail">Initial investment</p>
+        </article>
+        <article class="summary-card">
+            <p class="summary-card__label">Total gain/loss</p>
+            <p class="summary-card__value @GetChangeClass(currentPortfolio.TotalGainLoss) num">
+                @FormatChange(currentPortfolio.TotalGainLoss)
+            </p>
+            <p class="summary-card__detail @GetChangeClass(currentPortfolio.TotalGainLoss)">
+                @FormatPercent(currentPortfolio.TotalGainLoss, currentPortfolio.TotalCost)
+            </p>
+        </article>
+    </div>
+
+    <div class="portfolio-toolbar">
+        <div>
+            <h2>Holdings</h2>
+            <p class="text-muted mb-0">Live prices are shown in @selectedCurrency.</p>
+        </div>
+        <div class="portfolio-toolbar__controls">
+            <label class="toolbar-field">
+                <span>Show values in</span>
+                <select class="form-select" aria-label="Display currency" @bind="selectedCurrency" @bind:after="ChangeCurrencyAsync">
+                    <option value="USD">USD</option>
+                    <option value="EUR">EUR</option>
+                    <option value="GBP">GBP</option>
+                    <option value="CNY">CNY</option>
+                    <option value="JPY">JPY</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <div class="holdings-table-container">
+        <table class="holdings-table">
+            <thead>
+                <tr>
+                    <th scope="col">
+                        <button class="sortable-header" type="button" @onclick="() => SortBy(nameof(SortField.Symbol))">
+                            Symbol @SortIndicator(nameof(SortField.Symbol))
+                        </button>
+                    </th>
+                    <th scope="col" class="num">
+                        <button class="sortable-header" type="button" @onclick="() => SortBy(nameof(SortField.Quantity))">
+                            Quantity @SortIndicator(nameof(SortField.Quantity))
+                        </button>
+                    </th>
+                    <th scope="col" class="num">
+                        <button class="sortable-header" type="button" @onclick="() => SortBy(nameof(SortField.BuyPrice))">
+                            Buy price @SortIndicator(nameof(SortField.BuyPrice))
+                        </button>
+                    </th>
+                    <th scope="col" class="num">
+                        <button class="sortable-header" type="button" @onclick="() => SortBy(nameof(SortField.CurrentPrice))">
+                            Current price @SortIndicator(nameof(SortField.CurrentPrice))
+                        </button>
+                    </th>
+                    <th scope="col" class="num">
+                        <button class="sortable-header" type="button" @onclick="() => SortBy(nameof(SortField.MarketValue))">
+                            Market value @SortIndicator(nameof(SortField.MarketValue))
+                        </button>
+                    </th>
+                    <th scope="col" class="num">
+                        <button class="sortable-header" type="button" @onclick="() => SortBy(nameof(SortField.GainLossPercent))">
+                            Gain/loss @SortIndicator(nameof(SortField.GainLossPercent))
+                        </button>
+                    </th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                @foreach (var holding in currentPortfolio.Holdings)
+                {
+                    <tr>
+                        <td>
+                            <a class="holding-symbol" href="/stock/@holding.Symbol">@holding.Symbol</a>
+                            <span>@holding.Name</span>
+                        </td>
+                        <td class="num">@holding.Quantity</td>
+                        <td class="num">@FormatMoney(holding.BuyPrice * holding.FxRate)</td>
+                        <td class="num">@FormatMoney(holding.Quote?.C * holding.FxRate)</td>
+                        <td class="num">@FormatMoney(holding.MarketValue)</td>
+                        <td class="num @GetChangeClass(holding.GainLoss)">
+                            @FormatChange(holding.GainLoss)<br />
+                            <small>@FormatPercent(holding.GainLoss, holding.CostBasis)</small>
+                        </td>
+                        <td><button class="action-button" type="button">Edit</button></td>
+                    </tr>
+                }
+            </tbody>
+        </table>
+    </div>
+</section>
+}
+
+@code {
+    private SOA_CA1.Models.Portfolio? loadedPortfolio;
+    private bool isLoading = true;
+    private string? errorMessage;
+    private string selectedCurrency = "USD";
+    private string selectedSortField = "Symbol";
+    private bool sortDescending;
+    private bool showAddForm;
+    private string newHoldingCurrency = "USD";
+    private Holding newHolding = new() { DateBought = DateOnly.FromDateTime(DateTime.Today) };
+    private IReadOnlyList<SearchResult> searchResults = Array.Empty<SearchResult>();
+    private string? searchErrorMessage;
+    private bool isSearching;
+    private bool hasSearched;
+    private string? addErrorMessage;
+    private string? addSuccessMessage;
+    private bool isAdding;
+    private SearchResult? selectedSearchResult;
+
+    protected override async Task OnInitializedAsync()
+    {
+        selectedCurrency = CurrencyPreference.CurrentCurrency;
+        try
+        {
+            loadedPortfolio = await PortfolioService.GetPortfolioAsync(selectedCurrency);
+            ApplySort();
+        }
+        catch (ApiException)
+        {
+            errorMessage = "The portfolio could not be loaded because a market-data service is unavailable.";
+        }
+        catch (InvalidDataException)
+        {
+            errorMessage = "The portfolio data could not be read.";
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "The portfolio could not be loaded. Check your network connection and try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private async Task ChangeCurrencyAsync()
+    {
+        CurrencyPreference.SetCurrency(selectedCurrency);
+        await ReloadPortfolioAsync();
+    }
+
+    private void OpenAddHoldingModal()
+    {
+        newHoldingCurrency = selectedCurrency;
+        searchResults = Array.Empty<SearchResult>();
+        searchErrorMessage = null;
+        addErrorMessage = null;
+        selectedSearchResult = null;
+        hasSearched = false;
+        showAddForm = true;
+    }
+
+    private async Task SearchStocksAsync()
+    {
+        searchErrorMessage = null;
+        searchResults = Array.Empty<SearchResult>();
+        hasSearched = true;
+
+        if (string.IsNullOrWhiteSpace(newHolding.Symbol))
+        {
+            return;
+        }
+
+        isSearching = true;
+        try
+        {
+            searchResults = await MarketDataService.SearchAsync(newHolding.Symbol);
+        }
+        catch (ApiException)
+        {
+            searchErrorMessage = "Stock search is currently unavailable. Please try again.";
+        }
+        catch (HttpRequestException)
+        {
+            searchErrorMessage = "Stock search could not be completed. Check your network connection and try again.";
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private void SelectSearchResult(SearchResult result)
+    {
+        newHolding.Symbol = result.Symbol;
+        newHolding.Name = result.Description;
+        selectedSearchResult = result;
+        searchResults = Array.Empty<SearchResult>();
+        searchErrorMessage = null;
+        hasSearched = false;
+    }
+
+    private async Task AddHoldingAsync()
+    {
+        addErrorMessage = null;
+
+        if (loadedPortfolio is null || selectedSearchResult is null ||
+            !string.Equals(newHolding.Symbol, selectedSearchResult.Symbol, StringComparison.OrdinalIgnoreCase))
+        {
+            addErrorMessage = "Search for a stock and select a result before continuing.";
+            return;
+        }
+
+        if (loadedPortfolio.Holdings.Any(holding =>
+                string.Equals(holding.Symbol, selectedSearchResult.Symbol, StringComparison.OrdinalIgnoreCase)))
+        {
+            addErrorMessage = "That stock is already in your portfolio.";
+            return;
+        }
+
+        isAdding = true;
+        try
+        {
+            var buyPriceRate = await GetCurrencyRateAsync(newHoldingCurrency);
+            var displayRate = await GetCurrencyRateAsync(selectedCurrency);
+            var holding = new Holding
+            {
+                Symbol = selectedSearchResult.Symbol,
+                Name = selectedSearchResult.Description,
+                Quantity = newHolding.Quantity,
+                BuyPrice = newHolding.BuyPrice / buyPriceRate,
+                DateBought = newHolding.DateBought,
+                FxRate = displayRate
+            };
+
+            try
+            {
+                holding.Quote = await MarketDataService.GetQuoteAsync(holding.Symbol);
+            }
+            catch (ApiException)
+            {
+                // Keep the holding visible when its live quote is unavailable.
+            }
+
+            loadedPortfolio.Holdings.Add(holding);
+            ApplySort();
+            addSuccessMessage = holding.Quote is null
+                ? $"{holding.Symbol} was added, but its live price is unavailable."
+                : $"{holding.Symbol} was added to your portfolio.";
+            ResetAddHoldingForm();
+            showAddForm = false;
+        }
+        catch (ApiException)
+        {
+            addErrorMessage = "The holding could not be added because currency data is unavailable.";
+        }
+        catch (HttpRequestException)
+        {
+            addErrorMessage = "The holding could not be added. Check your network connection and try again.";
+        }
+        finally
+        {
+            isAdding = false;
+        }
+    }
+
+    private async Task<decimal> GetCurrencyRateAsync(string currency) =>
+        currency == "USD" ? 1m : await CurrencyService.GetRateAsync("USD", currency);
+
+    private void ResetAddHoldingForm()
+    {
+        newHolding = new Holding { DateBought = DateOnly.FromDateTime(DateTime.Today) };
+        newHoldingCurrency = selectedCurrency;
+        selectedSearchResult = null;
+        searchResults = Array.Empty<SearchResult>();
+        searchErrorMessage = null;
+        hasSearched = false;
+    }
+
+    private async Task ReloadPortfolioAsync()
+    {
+        isLoading = true;
+        errorMessage = null;
+
+        try
+        {
+            loadedPortfolio = await PortfolioService.GetPortfolioAsync(selectedCurrency);
+            ApplySort();
+        }
+        catch (ApiException)
+        {
+            errorMessage = "The portfolio could not be loaded because a market-data service is unavailable.";
+        }
+        catch (InvalidDataException)
+        {
+            errorMessage = "The portfolio data could not be read.";
+        }
+        catch (HttpRequestException)
+        {
+            errorMessage = "The portfolio could not be loaded. Check your network connection and try again.";
+        }
+        finally
+        {
+            isLoading = false;
+        }
+    }
+
+    private void ApplySort()
+    {
+        if (loadedPortfolio is null)
+        {
+            return;
+        }
+
+        loadedPortfolio.Holdings = PortfolioService
+            .Sort(loadedPortfolio.Holdings, selectedSortField, sortDescending)
+            .ToList();
+    }
+
+    private void SortBy(string sortField)
+    {
+        if (selectedSortField == sortField)
+        {
+            sortDescending = !sortDescending;
+        }
+        else
+        {
+            selectedSortField = sortField;
+            sortDescending = false;
+        }
+
+        ApplySort();
+    }
+
+    private string SortIndicator(string sortField) =>
+        selectedSortField == sortField ? (sortDescending ? "▼" : "▲") : "";
+
+    private string FormatMoney(decimal? value) =>
+        value is null ? "Unavailable" : FormatCurrency(value.Value);
+
+    private string FormatMoney(decimal value) =>
+        FormatCurrency(value);
+
+    private string FormatChange(decimal? value)
+    {
+        if (value is null)
+        {
+            return "Unavailable";
+        }
+
+        return $"{(value >= 0 ? "▲ +" : "▼ ")}{FormatCurrency(Math.Abs(value.Value))}";
+    }
+
+    private string FormatCurrency(decimal value)
+    {
+        return $"{(value < 0 ? "-" : "")}{CurrencyPreference.GetSymbol(selectedCurrency)}{Math.Abs(value).ToString("N2", CultureInfo.InvariantCulture)}";
+    }
+
+    private static string FormatPercent(decimal? gainLoss, decimal costBasis)
+    {
+        if (gainLoss is null || costBasis == 0m)
+        {
+            return "Unavailable";
+        }
+
+        var percentage = gainLoss.Value / costBasis * 100m;
+        return $"{(percentage >= 0 ? "+" : "")}{percentage:F2}%";
+    }
+
+    private static string GetChangeClass(decimal? value) =>
+        value is null ? "" : value >= 0 ? "gain" : "loss";
+}
