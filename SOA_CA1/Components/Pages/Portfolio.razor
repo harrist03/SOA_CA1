@@ -1,0 +1,102 @@
+@page "/"
+
+<PageTitle>Portfolio | SOA Portfolio</PageTitle>
+
+<section class="portfolio-page" aria-labelledby="portfolio-heading">
+    <div class="portfolio-heading">
+        <div>
+            <p class="eyebrow">Overview</p>
+            <h1 id="portfolio-heading">My Portfolio</h1>
+            <p class="text-muted mb-0">Track your holdings and performance in one place.</p>
+        </div>
+        <button class="btn btn-primary" type="button">Add holding</button>
+    </div>
+
+    <div class="summary-grid" aria-label="Portfolio summary">
+        <article class="summary-card">
+            <p class="summary-card__label">Total value</p>
+            <p class="summary-card__value num">$7,506.80</p>
+            <p class="summary-card__detail">3 holdings</p>
+        </article>
+        <article class="summary-card">
+            <p class="summary-card__label">Total cost</p>
+            <p class="summary-card__value num">$6,855.00</p>
+            <p class="summary-card__detail">Initial investment</p>
+        </article>
+        <article class="summary-card">
+            <p class="summary-card__label">Total gain/loss</p>
+            <p class="summary-card__value gain num">▲ +$651.80</p>
+            <p class="summary-card__detail gain">▲ +9.51%</p>
+        </article>
+    </div>
+
+    <div class="portfolio-toolbar">
+        <div>
+            <h2>Holdings</h2>
+            <p class="text-muted mb-0">Live prices are shown in USD.</p>
+        </div>
+        <div class="portfolio-toolbar__controls">
+            <label class="toolbar-field">
+                <span>Sort by</span>
+                <select class="form-select" aria-label="Sort holdings">
+                    <option>Symbol</option>
+                    <option>Market value</option>
+                    <option>Gain/loss</option>
+                </select>
+            </label>
+            <label class="toolbar-field">
+                <span>Show values in</span>
+                <select class="form-select" aria-label="Display currency">
+                    <option>USD</option>
+                    <option>EUR</option>
+                    <option>GBP</option>
+                </select>
+            </label>
+        </div>
+    </div>
+
+    <div class="holdings-table-container">
+        <table class="holdings-table">
+            <thead>
+                <tr>
+                    <th scope="col">Symbol</th>
+                    <th scope="col" class="num">Quantity</th>
+                    <th scope="col" class="num">Buy price</th>
+                    <th scope="col" class="num">Current price</th>
+                    <th scope="col" class="num">Market value</th>
+                    <th scope="col" class="num">Gain/loss</th>
+                    <th scope="col"><span class="visually-hidden">Actions</span></th>
+                </tr>
+            </thead>
+            <tbody>
+                <tr>
+                    <td><a class="holding-symbol" href="/stock/AAPL">AAPL</a><span>Apple Inc.</span></td>
+                    <td class="num">10</td>
+                    <td class="num">$187.50</td>
+                    <td class="num">$225.68</td>
+                    <td class="num">$2,256.80</td>
+                    <td class="num gain">▲ +$381.80<br /><small>+20.36%</small></td>
+                    <td><button class="action-button" type="button">Edit</button></td>
+                </tr>
+                <tr>
+                    <td><a class="holding-symbol" href="/stock/MSFT">MSFT</a><span>Microsoft Corporation</span></td>
+                    <td class="num">5</td>
+                    <td class="num">$410.00</td>
+                    <td class="num">$513.71</td>
+                    <td class="num">$2,568.55</td>
+                    <td class="num gain">▲ +$518.55<br /><small>+25.29%</small></td>
+                    <td><button class="action-button" type="button">Edit</button></td>
+                </tr>
+                <tr>
+                    <td><a class="holding-symbol" href="/stock/NVDA">NVDA</a><span>NVIDIA Corporation</span></td>
+                    <td class="num">8</td>
+                    <td class="num">$138.25</td>
+                    <td class="num">$335.18</td>
+                    <td class="num">$2,681.44</td>
+                    <td class="num loss">▼ -$112.56<br /><small>-4.03%</small></td>
+                    <td><button class="action-button" type="button">Edit</button></td>
+                </tr>
+            </tbody>
+        </table>
+    </div>
+</section>
