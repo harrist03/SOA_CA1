@@ -58,39 +58,6 @@ public class CurrencyService : ICurrencyService
         }
     }
 
-    public async Task<IReadOnlyList<string>> GetCurrenciesAsync()
-    {
-        try
-        {
-            using var response = await httpClient.GetAsync("currencies");
-            if (!response.IsSuccessStatusCode)
-            {
-                throw new ApiException(ProviderName, response.StatusCode,
-                    "Frankfurter could not retrieve the supported currencies.");
-            }
-
-            await using var responseStream = await response.Content.ReadAsStreamAsync();
-            using var document = await JsonDocument.ParseAsync(responseStream);
-            return document.RootElement.EnumerateArray()
-                .Where(currency => currency.TryGetProperty("iso_code", out _))
-                .Select(currency => currency.GetProperty("iso_code").GetString())
-                .Where(code => code is not null)
-                .Select(code => code!)
-                .OrderBy(code => code, StringComparer.Ordinal)
-                .ToArray();
-        }
-        catch (JsonException)
-        {
-            throw new ApiException(ProviderName, null,
-                "Frankfurter returned malformed currency data.");
-        }
-        catch (HttpRequestException exception)
-        {
-            throw new ApiException(ProviderName, exception.StatusCode,
-                "Frankfurter could not be reached.");
-        }
-    }
-
     private static string NormalizeCurrencyCode(string currencyCode)
     {
         if (string.IsNullOrWhiteSpace(currencyCode))
