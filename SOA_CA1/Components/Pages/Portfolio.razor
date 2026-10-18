@@ -303,9 +303,28 @@ var currentPortfolio = loadedPortfolio!;
                             <small>@FormatPercent(holding.GainLoss, holding.CostBasis)</small>
                         </td>
                         <td>
-                            <button class="action-button" type="button" @onclick="() => OpenEditHoldingModal(holding)">
-                                Edit
-                            </button>
+                            @if (pendingRemovalId == holding.Id)
+                            {
+                                <span class="remove-confirmation">Remove?</span>
+                                <button class="action-button action-button--destructive" type="button"
+                                        @onclick="() => RemoveHolding(holding)">
+                                    Confirm
+                                </button>
+                                <button class="action-button" type="button" @onclick="CancelRemoveHolding">
+                                    Cancel
+                                </button>
+                            }
+                            else
+                            {
+                                <button class="action-button" type="button"
+                                        @onclick="() => OpenEditHoldingModal(holding)">
+                                    Edit
+                                </button>
+                                <button class="action-button action-button--destructive" type="button"
+                                        @onclick="() => RequestRemoveHolding(holding)">
+                                    Remove
+                                </button>
+                            }
                         </td>
                     </tr>
                 }
@@ -339,6 +358,7 @@ var currentPortfolio = loadedPortfolio!;
     private string editHoldingCurrency = "USD";
     private string? editErrorMessage;
     private bool isEditing;
+    private Guid? pendingRemovalId;
 
     protected override async Task OnInitializedAsync()
     {
@@ -444,6 +464,29 @@ var currentPortfolio = loadedPortfolio!;
         showEditForm = false;
         editHolding = null;
         editErrorMessage = null;
+    }
+
+    private void RequestRemoveHolding(Holding holding)
+    {
+        pendingRemovalId = holding.Id;
+    }
+
+    private void CancelRemoveHolding()
+    {
+        pendingRemovalId = null;
+    }
+
+    private void RemoveHolding(Holding holding)
+    {
+        if (loadedPortfolio is null || pendingRemovalId != holding.Id)
+        {
+            return;
+        }
+
+        loadedPortfolio.Holdings.Remove(holding);
+        pendingRemovalId = null;
+        ApplySort();
+        addSuccessMessage = $"{holding.Symbol} was removed from your portfolio.";
     }
 
     private async Task SaveHoldingEditAsync()
