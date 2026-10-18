@@ -39,8 +39,69 @@ var currentPortfolio = loadedPortfolio!;
             <h1 id="portfolio-heading">My Portfolio</h1>
             <p class="text-muted mb-0">Track your holdings and performance in one place.</p>
         </div>
-        <button class="btn btn-primary" type="button">Add holding</button>
+        <button class="btn btn-primary" type="button" @onclick="OpenAddHoldingModal">
+            Add holding
+        </button>
     </div>
+
+    @if (showAddForm)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+             aria-labelledby="add-holding-heading">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <EditForm Model="newHolding">
+                        <DataAnnotationsValidator />
+                        <div class="modal-header">
+                            <h2 class="modal-title fs-5" id="add-holding-heading">Add holding</h2>
+                            <button type="button" class="btn-close" aria-label="Close"
+                                    @onclick="() => showAddForm = false"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="d-grid gap-3">
+                                <div class="toolbar-field">
+                                    <label for="holding-symbol">Symbol</label>
+                                    <InputText id="holding-symbol" class="form-control" @bind-Value="newHolding.Symbol" />
+                                    <ValidationMessage For="() => newHolding.Symbol" />
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="holding-quantity">Quantity</label>
+                                    <InputNumber id="holding-quantity" class="form-control" @bind-Value="newHolding.Quantity" />
+                                    <ValidationMessage For="() => newHolding.Quantity" />
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="holding-currency">Buy price currency</label>
+                                    <select id="holding-currency" class="form-select" @bind="newHoldingCurrency">
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="GBP">GBP</option>
+                                        <option value="CNY">CNY</option>
+                                        <option value="JPY">JPY</option>
+                                    </select>
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="holding-buy-price">Buy price (@newHoldingCurrency)</label>
+                                    <InputNumber id="holding-buy-price" class="form-control" @bind-Value="newHolding.BuyPrice" />
+                                    <ValidationMessage For="() => newHolding.BuyPrice" />
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="holding-date">Date bought</label>
+                                    <InputDate id="holding-date" class="form-control" @bind-Value="newHolding.DateBought" />
+                                </div>
+                            </div>
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">
+                                Cancel
+                            </button>
+                            <button class="btn btn-primary" type="submit">Continue</button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
 
     <div class="summary-grid" aria-label="Portfolio summary">
         <article class="summary-card">
@@ -152,6 +213,9 @@ var currentPortfolio = loadedPortfolio!;
     private string selectedCurrency = "USD";
     private string selectedSortField = "Symbol";
     private bool sortDescending;
+    private bool showAddForm;
+    private string newHoldingCurrency = "USD";
+    private Holding newHolding = new() { DateBought = DateOnly.FromDateTime(DateTime.Today) };
 
     protected override async Task OnInitializedAsync()
     {
@@ -183,6 +247,12 @@ var currentPortfolio = loadedPortfolio!;
     {
         CurrencyPreference.SetCurrency(selectedCurrency);
         await ReloadPortfolioAsync();
+    }
+
+    private void OpenAddHoldingModal()
+    {
+        newHoldingCurrency = selectedCurrency;
+        showAddForm = true;
     }
 
     private async Task ReloadPortfolioAsync()

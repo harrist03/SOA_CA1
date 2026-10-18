@@ -92,6 +92,11 @@ input {
     color: var(--loss);
 }
 
+.validation-message {
+    color: var(--bs-danger, #dc3545);
+    font-size: 0.875rem;
+}
+
 .num {
     font-variant-numeric: tabular-nums;
     text-align: right;

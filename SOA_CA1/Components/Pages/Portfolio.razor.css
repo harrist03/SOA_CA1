@@ -19,6 +19,15 @@
     margin: 0 0 8px;
 }
 
+.modal label {
+    color: var(--muted);
+    font-size: 0.875rem;
+}
+
+.modal .validation-message {
+    color: var(--bs-danger, #dc3545);
+}
+
 .eyebrow,
 .summary-card__label,
 .toolbar-field span,
