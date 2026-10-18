@@ -142,6 +142,72 @@ var currentPortfolio = loadedPortfolio!;
         <div class="modal-backdrop fade show"></div>
     }
 
+    @if (showEditForm && editHolding is not null)
+    {
+        <div class="modal fade show d-block" tabindex="-1" role="dialog" aria-modal="true"
+             aria-labelledby="edit-holding-heading">
+            <div class="modal-dialog modal-dialog-centered">
+                <div class="modal-content">
+                    <EditForm Model="editHoldingDraft" OnValidSubmit="SaveHoldingEditAsync">
+                        <DataAnnotationsValidator />
+                        <div class="modal-header">
+                            <h2 class="modal-title fs-5" id="edit-holding-heading">
+                                Edit @editHolding.Symbol
+                            </h2>
+                            <button type="button" class="btn-close" aria-label="Close"
+                                    @onclick="CloseEditHoldingModal"></button>
+                        </div>
+                        <div class="modal-body">
+                            <div class="d-grid gap-3">
+                                <div class="toolbar-field">
+                                    <label for="edit-holding-quantity">Quantity</label>
+                                    <InputNumber id="edit-holding-quantity" class="form-control"
+                                                 @bind-Value="editHoldingDraft.Quantity" />
+                                    <ValidationMessage For="() => editHoldingDraft.Quantity" />
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="edit-holding-currency">Buy price currency</label>
+                                    <select id="edit-holding-currency" class="form-select"
+                                            @bind="editHoldingCurrency">
+                                        <option value="USD">USD</option>
+                                        <option value="EUR">EUR</option>
+                                        <option value="GBP">GBP</option>
+                                        <option value="CNY">CNY</option>
+                                        <option value="JPY">JPY</option>
+                                    </select>
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="edit-holding-buy-price">Buy price (@editHoldingCurrency)</label>
+                                    <InputNumber id="edit-holding-buy-price" class="form-control"
+                                                 @bind-Value="editHoldingDraft.BuyPrice" />
+                                    <ValidationMessage For="() => editHoldingDraft.BuyPrice" />
+                                </div>
+                                <div class="toolbar-field">
+                                    <label for="edit-holding-date">Date bought</label>
+                                    <InputDate id="edit-holding-date" class="form-control"
+                                               @bind-Value="editHoldingDraft.DateBought" />
+                                </div>
+                            </div>
+                            @if (editErrorMessage is not null)
+                            {
+                                <div class="alert alert-danger mt-3 mb-0" role="alert">@editErrorMessage</div>
+                            }
+                        </div>
+                        <div class="modal-footer">
+                            <button type="button" class="btn btn-secondary" @onclick="CloseEditHoldingModal">
+                                Cancel
+                            </button>
+                            <button class="btn btn-primary" type="submit" disabled="@isEditing">
+                                @(isEditing ? "Saving..." : "Save changes")
+                            </button>
+                        </div>
+                    </EditForm>
+                </div>
+            </div>
+        </div>
+        <div class="modal-backdrop fade show"></div>
+    }
+
     <div class="summary-grid" aria-label="Portfolio summary">
         <article class="summary-card">
             <p class="summary-card__label">Total value</p>
@@ -236,7 +302,11 @@ var currentPortfolio = loadedPortfolio!;
                             @FormatChange(holding.GainLoss)<br />
                             <small>@FormatPercent(holding.GainLoss, holding.CostBasis)</small>
                         </td>
-                        <td><button class="action-button" type="button">Edit</button></td>
+                        <td>
+                            <button class="action-button" type="button" @onclick="() => OpenEditHoldingModal(holding)">
+                                Edit
+                            </button>
+                        </td>
                     </tr>
                 }
             </tbody>
@@ -263,6 +333,12 @@ var currentPortfolio = loadedPortfolio!;
     private string? addSuccessMessage;
     private bool isAdding;
     private SearchResult? selectedSearchResult;
+    private bool showEditForm;
+    private Holding? editHolding;
+    private Holding editHoldingDraft = new();
+    private string editHoldingCurrency = "USD";
+    private string? editErrorMessage;
+    private bool isEditing;
 
     protected override async Task OnInitializedAsync()
     {
@@ -345,6 +421,66 @@ var currentPortfolio = loadedPortfolio!;
         searchResults = Array.Empty<SearchResult>();
         searchErrorMessage = null;
         hasSearched = false;
+    }
+
+    private void OpenEditHoldingModal(Holding holding)
+    {
+        editHolding = holding;
+        editHoldingCurrency = selectedCurrency;
+        editHoldingDraft = new Holding
+        {
+            Symbol = holding.Symbol,
+            Name = holding.Name,
+            Quantity = holding.Quantity,
+            BuyPrice = holding.BuyPrice * holding.FxRate,
+            DateBought = holding.DateBought
+        };
+        editErrorMessage = null;
+        showEditForm = true;
+    }
+
+    private void CloseEditHoldingModal()
+    {
+        showEditForm = false;
+        editHolding = null;
+        editErrorMessage = null;
+    }
+
+    private async Task SaveHoldingEditAsync()
+    {
+        if (editHolding is null)
+        {
+            return;
+        }
+
+        editErrorMessage = null;
+        isEditing = true;
+
+        try
+        {
+            var buyPriceRate = await GetCurrencyRateAsync(editHoldingCurrency);
+            var displayRate = await GetCurrencyRateAsync(selectedCurrency);
+
+            editHolding.Quantity = editHoldingDraft.Quantity;
+            editHolding.BuyPrice = editHoldingDraft.BuyPrice / buyPriceRate;
+            editHolding.DateBought = editHoldingDraft.DateBought;
+            editHolding.FxRate = displayRate;
+            ApplySort();
+            addSuccessMessage = $"{editHolding.Symbol} was updated.";
+            CloseEditHoldingModal();
+        }
+        catch (ApiException)
+        {
+            editErrorMessage = "The holding could not be updated because currency data is unavailable.";
+        }
+        catch (HttpRequestException)
+        {
+            editErrorMessage = "The holding could not be updated. Check your network connection and try again.";
+        }
+        finally
+        {
+            isEditing = false;
+        }
     }
 
     private async Task AddHoldingAsync()
