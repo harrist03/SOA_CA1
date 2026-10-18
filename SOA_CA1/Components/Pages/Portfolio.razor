@@ -4,6 +4,8 @@
 @using SOA_CA1.Models
 @using SOA_CA1.Services
 @inject IPortfolioService PortfolioService
+@inject IMarketDataService MarketDataService
+@inject ICurrencyService CurrencyService
 @inject CurrencyPreference CurrencyPreference
 
 <PageTitle>Portfolio</PageTitle>
@@ -33,7 +35,12 @@ else
 {
 var currentPortfolio = loadedPortfolio!;
 <section class="portfolio-page" aria-labelledby="portfolio-heading">
-    <div class="portfolio-heading">
+@if (addSuccessMessage is not null)
+{
+    <div class="alert alert-success" role="status">@addSuccessMessage</div>
+}
+
+<div class="portfolio-heading">
         <div>
             <p class="eyebrow">Overview</p>
             <h1 id="portfolio-heading">My Portfolio</h1>
@@ -50,7 +57,7 @@ var currentPortfolio = loadedPortfolio!;
              aria-labelledby="add-holding-heading">
             <div class="modal-dialog modal-dialog-centered">
                 <div class="modal-content">
-                    <EditForm Model="newHolding">
+                    <EditForm Model="newHolding" OnValidSubmit="AddHoldingAsync">
                         <DataAnnotationsValidator />
                         <div class="modal-header">
                             <h2 class="modal-title fs-5" id="add-holding-heading">Add holding</h2>
@@ -63,7 +70,37 @@ var currentPortfolio = loadedPortfolio!;
                                     <label for="holding-symbol">Symbol</label>
                                     <InputText id="holding-symbol" class="form-control" @bind-Value="newHolding.Symbol" />
                                     <ValidationMessage For="() => newHolding.Symbol" />
+                                    <button class="btn btn-secondary holding-search-button" type="button"
+                                            @onclick="SearchStocksAsync" disabled="@isSearching">
+                                        @(isSearching ? "Searching..." : "Search stocks")
+                                    </button>
                                 </div>
+                                @if (searchErrorMessage is not null)
+                                {
+                                    <div class="alert alert-danger mb-0" role="alert">@searchErrorMessage</div>
+                                }
+                                else if (searchResults.Count > 0)
+                                {
+                                    <div class="holding-search-results" role="listbox" aria-label="Stock search results">
+                                        @foreach (var result in searchResults)
+                                        {
+                                            <button class="holding-search-result" type="button"
+                                                    @onclick="() => SelectSearchResult(result)">
+                                                <strong>@result.Symbol</strong>
+                                                <span>@result.Description</span>
+                                                <small>@result.Type</small>
+                                            </button>
+                                        }
+                                    </div>
+                                }
+                                else if (hasSearched)
+                                {
+                                    <p class="text-muted mb-0">No matching stocks were found.</p>
+                                }
+                                @if (addErrorMessage is not null)
+                                {
+                                    <div class="alert alert-danger mb-0" role="alert">@addErrorMessage</div>
+                                }
                                 <div class="toolbar-field">
                                     <label for="holding-quantity">Quantity</label>
                                     <InputNumber id="holding-quantity" class="form-control" @bind-Value="newHolding.Quantity" />
@@ -94,7 +131,9 @@ var currentPortfolio = loadedPortfolio!;
                             <button type="button" class="btn btn-secondary" @onclick="() => showAddForm = false">
                                 Cancel
                             </button>
-                            <button class="btn btn-primary" type="submit">Continue</button>
+                            <button class="btn btn-primary" type="submit" disabled="@isAdding">
+                                @(isAdding ? "Adding..." : "Continue")
+                            </button>
                         </div>
                     </EditForm>
                 </div>
@@ -216,6 +255,14 @@ var currentPortfolio = loadedPortfolio!;
     private bool showAddForm;
     private string newHoldingCurrency = "USD";
     private Holding newHolding = new() { DateBought = DateOnly.FromDateTime(DateTime.Today) };
+    private IReadOnlyList<SearchResult> searchResults = Array.Empty<SearchResult>();
+    private string? searchErrorMessage;
+    private bool isSearching;
+    private bool hasSearched;
+    private string? addErrorMessage;
+    private string? addSuccessMessage;
+    private bool isAdding;
+    private SearchResult? selectedSearchResult;
 
     protected override async Task OnInitializedAsync()
     {
@@ -252,7 +299,129 @@ var currentPortfolio = loadedPortfolio!;
     private void OpenAddHoldingModal()
     {
         newHoldingCurrency = selectedCurrency;
+        searchResults = Array.Empty<SearchResult>();
+        searchErrorMessage = null;
+        addErrorMessage = null;
+        selectedSearchResult = null;
+        hasSearched = false;
         showAddForm = true;
+    }
+
+    private async Task SearchStocksAsync()
+    {
+        searchErrorMessage = null;
+        searchResults = Array.Empty<SearchResult>();
+        hasSearched = true;
+
+        if (string.IsNullOrWhiteSpace(newHolding.Symbol))
+        {
+            return;
+        }
+
+        isSearching = true;
+        try
+        {
+            searchResults = await MarketDataService.SearchAsync(newHolding.Symbol);
+        }
+        catch (ApiException)
+        {
+            searchErrorMessage = "Stock search is currently unavailable. Please try again.";
+        }
+        catch (HttpRequestException)
+        {
+            searchErrorMessage = "Stock search could not be completed. Check your network connection and try again.";
+        }
+        finally
+        {
+            isSearching = false;
+        }
+    }
+
+    private void SelectSearchResult(SearchResult result)
+    {
+        newHolding.Symbol = result.Symbol;
+        newHolding.Name = result.Description;
+        selectedSearchResult = result;
+        searchResults = Array.Empty<SearchResult>();
+        searchErrorMessage = null;
+        hasSearched = false;
+    }
+
+    private async Task AddHoldingAsync()
+    {
+        addErrorMessage = null;
+
+        if (loadedPortfolio is null || selectedSearchResult is null ||
+            !string.Equals(newHolding.Symbol, selectedSearchResult.Symbol, StringComparison.OrdinalIgnoreCase))
+        {
+            addErrorMessage = "Search for a stock and select a result before continuing.";
+            return;
+        }
+
+        if (loadedPortfolio.Holdings.Any(holding =>
+                string.Equals(holding.Symbol, selectedSearchResult.Symbol, StringComparison.OrdinalIgnoreCase)))
+        {
+            addErrorMessage = "That stock is already in your portfolio.";
+            return;
+        }
+
+        isAdding = true;
+        try
+        {
+            var buyPriceRate = await GetCurrencyRateAsync(newHoldingCurrency);
+            var displayRate = await GetCurrencyRateAsync(selectedCurrency);
+            var holding = new Holding
+            {
+                Symbol = selectedSearchResult.Symbol,
+                Name = selectedSearchResult.Description,
+                Quantity = newHolding.Quantity,
+                BuyPrice = newHolding.BuyPrice / buyPriceRate,
+                DateBought = newHolding.DateBought,
+                FxRate = displayRate
+            };
+
+            try
+            {
+                holding.Quote = await MarketDataService.GetQuoteAsync(holding.Symbol);
+            }
+            catch (ApiException)
+            {
+                // Keep the holding visible when its live quote is unavailable.
+            }
+
+            loadedPortfolio.Holdings.Add(holding);
+            ApplySort();
+            addSuccessMessage = holding.Quote is null
+                ? $"{holding.Symbol} was added, but its live price is unavailable."
+                : $"{holding.Symbol} was added to your portfolio.";
+            ResetAddHoldingForm();
+            showAddForm = false;
+        }
+        catch (ApiException)
+        {
+            addErrorMessage = "The holding could not be added because currency data is unavailable.";
+        }
+        catch (HttpRequestException)
+        {
+            addErrorMessage = "The holding could not be added. Check your network connection and try again.";
+        }
+        finally
+        {
+            isAdding = false;
+        }
+    }
+
+    private async Task<decimal> GetCurrencyRateAsync(string currency) =>
+        currency == "USD" ? 1m : await CurrencyService.GetRateAsync("USD", currency);
+
+    private void ResetAddHoldingForm()
+    {
+        newHolding = new Holding { DateBought = DateOnly.FromDateTime(DateTime.Today) };
+        newHoldingCurrency = selectedCurrency;
+        selectedSearchResult = null;
+        searchResults = Array.Empty<SearchResult>();
+        searchErrorMessage = null;
+        hasSearched = false;
     }
 
     private async Task ReloadPortfolioAsync()

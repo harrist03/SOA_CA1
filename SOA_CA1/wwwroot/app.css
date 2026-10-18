@@ -8,6 +8,7 @@
     --tint: #f7f8fa;
     --gain: #0a7d4a;
     --loss: #c62828;
+    --search-shadow: 0 4px 12px rgba(10, 11, 13, 0.08);
 
     --bs-primary: var(--brand);
     --bs-body-color: var(--ink);
