@@ -1,5 +1,6 @@
 using Microsoft.Extensions.FileProviders;
 using Microsoft.Extensions.Hosting;
+using SOA_CA1.Models;
 using SOA_CA1.Services;
 
 namespace SOA_CA1.Tests;
@@ -64,6 +65,52 @@ public class HoldingsRepositoryTests
 
         Assert.Contains("invalid JSON", exception.Message);
         Assert.Equal(corruptJson, await File.ReadAllTextAsync(filePath));
+    }
+
+    [Fact]
+    public async Task SaveAsync_WritesPortfolioThatCanBeLoadedAgain()
+    {
+        using var temporaryDirectory = TemporaryDirectory.Create();
+        var repository = CreateRepository(temporaryDirectory.Path);
+        var holding = new Holding
+        {
+            Symbol = "AAPL",
+            Name = "Apple Inc.",
+            Quantity = 4,
+            BuyPrice = 187.50m,
+            DateBought = new DateOnly(2026, 10, 1),
+            Quote = new StockQuote(200m, 12m, 6m, 205m, 190m, 195m, 188m, 123L),
+            FxRate = 0.9m
+        };
+        var portfolio = new Portfolio
+        {
+            Name = "Saved Portfolio",
+            Holdings = new List<Holding> { holding }
+        };
+
+        await repository.SaveAsync(portfolio);
+        var loadedPortfolio = await repository.LoadAsync();
+
+        var loadedHolding = Assert.Single(loadedPortfolio.Holdings);
+        Assert.Equal("Saved Portfolio", loadedPortfolio.Name);
+        Assert.Equal(holding.Id, loadedHolding.Id);
+        Assert.Equal("AAPL", loadedHolding.Symbol);
+        Assert.Equal(4m, loadedHolding.Quantity);
+        Assert.Equal(187.50m, loadedHolding.BuyPrice);
+        Assert.Equal(new DateOnly(2026, 10, 1), loadedHolding.DateBought);
+        Assert.Null(loadedHolding.Quote);
+        Assert.Equal(1m, loadedHolding.FxRate);
+    }
+
+    [Fact]
+    public async Task SaveAsync_WhenPortfolioIsNull_ThrowsWithoutCreatingFile()
+    {
+        using var temporaryDirectory = TemporaryDirectory.Create();
+        var repository = CreateRepository(temporaryDirectory.Path);
+
+        await Assert.ThrowsAsync<ArgumentNullException>(() => repository.SaveAsync(null!));
+
+        Assert.False(File.Exists(Path.Combine(temporaryDirectory.Path, "Data", "holdings.json")));
     }
 
     private static HoldingsRepository CreateRepository(string contentRootPath)

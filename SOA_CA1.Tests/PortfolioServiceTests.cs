@@ -135,6 +135,7 @@ public class PortfolioServiceTests
     private sealed class FakeHoldingsRepository(Portfolio portfolio) : IHoldingsRepository
     {
         public Task<Portfolio> LoadAsync() => Task.FromResult(portfolio);
+        public Task SaveAsync(Portfolio portfolio) => Task.CompletedTask;
     }
 
     private sealed class FakeMarketDataService(Dictionary<string, StockQuote> quotes) : IMarketDataService
