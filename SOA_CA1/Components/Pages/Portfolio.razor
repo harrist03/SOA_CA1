@@ -8,6 +8,7 @@
 @inject ICurrencyService CurrencyService
 @inject IHoldingsRepository HoldingsRepository
 @inject CurrencyPreference CurrencyPreference
+@inject IConfiguration Configuration
 
 <PageTitle>Portfolio</PageTitle>
 
@@ -308,8 +309,21 @@ var currentPortfolio = loadedPortfolio!;
                 {
                     <tr>
                         <td>
-                            <a class="holding-symbol" href="/stock/@holding.Symbol">@holding.Symbol</a>
-                            <span>@holding.Name</span>
+                            <div class="holding-identity">
+                                @if (GetLogoUrl(holding.Symbol) is { } logoUrl)
+                                {
+                                    <img class="holding-logo"
+                                         src="@logoUrl"
+                                         alt=""
+                                         width="32"
+                                         height="32"
+                                         loading="lazy" />
+                                }
+                                <div>
+                                    <a class="holding-symbol" href="/stock/@holding.Symbol">@holding.Symbol</a>
+                                    <span>@holding.Name</span>
+                                </div>
+                            </div>
                         </td>
                         <td class="num">@holding.Quantity</td>
                         <td class="num">@FormatMoney(holding.BuyPrice * holding.FxRate)</td>
@@ -770,6 +784,15 @@ var currentPortfolio = loadedPortfolio!;
     private string FormatCurrency(decimal value)
     {
         return $"{(value < 0 ? "-" : "")}{CurrencyPreference.GetSymbol(selectedCurrency)}{Math.Abs(value).ToString("N2", CultureInfo.InvariantCulture)}";
+    }
+
+    private string? GetLogoUrl(string symbol)
+    {
+        var publishableKey = Configuration["LogoDev:PublishableKey"];
+        return string.IsNullOrWhiteSpace(publishableKey)
+            ? null
+            : $"https://img.logo.dev/ticker/{Uri.EscapeDataString(symbol)}" +
+              $"?token={Uri.EscapeDataString(publishableKey)}&size=64";
     }
 
     private static string FormatPercent(decimal? gainLoss, decimal costBasis)

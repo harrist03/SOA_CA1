@@ -6,6 +6,7 @@
 @inject IMarketDataService MarketDataService
 @inject ICurrencyService CurrencyService
 @inject CurrencyPreference CurrencyPreference
+@inject IConfiguration Configuration
 
 <PageTitle>@Symbol | SOA Portfolio</PageTitle>
 
@@ -19,9 +20,19 @@
     else
     {
         <header class="stock-detail-heading">
-            <div>
-                <p class="eyebrow">Stock detail</p>
-                <h1 id="stock-heading">@Symbol</h1>
+            <div class="stock-detail-identity">
+                @if (GetLogoUrl() is { } logoUrl)
+                {
+                    <img class="stock-detail-logo"
+                         src="@logoUrl"
+                         alt="@Symbol logo"
+                         width="96"
+                         height="96" />
+                }
+                <div>
+                    <p class="eyebrow">Stock detail</p>
+                    <h1 id="stock-heading">@Symbol</h1>
+                </div>
             </div>
             @if (quote is not null)
             {
@@ -168,6 +179,15 @@
 
     private static string GetChangeClass(decimal? value) =>
         value is null ? "" : value >= 0 ? "gain" : "loss";
+
+    private string? GetLogoUrl()
+    {
+        var publishableKey = Configuration["LogoDev:PublishableKey"];
+        return string.IsNullOrWhiteSpace(publishableKey)
+            ? null
+            : $"https://img.logo.dev/ticker/{Uri.EscapeDataString(Symbol)}" +
+              $"?token={Uri.EscapeDataString(publishableKey)}&size=192";
+    }
 
     private static string FormatArticleDate(long timestamp) =>
         DateTimeOffset.FromUnixTimeSeconds(timestamp).ToLocalTime().ToString("dd MMM yyyy");

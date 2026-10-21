@@ -25,6 +25,19 @@
     font-size: 1.75rem;
 }
 
+.stock-detail-identity {
+    align-items: center;
+    display: flex;
+    gap: 20px;
+}
+
+.stock-detail-logo {
+    background: var(--tint);
+    border: 1px solid var(--border);
+    border-radius: 16px;
+    object-fit: contain;
+}
+
 .eyebrow {
     color: var(--muted);
     font-size: 0.75rem;
@@ -108,6 +121,10 @@
     .stock-detail-heading {
         align-items: flex-start;
         flex-direction: column;
+    }
+
+    .stock-detail-identity {
+        gap: 16px;
     }
 
     .stock-price {
