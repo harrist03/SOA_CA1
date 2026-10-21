@@ -6,6 +6,7 @@
 @inject IPortfolioService PortfolioService
 @inject IMarketDataService MarketDataService
 @inject ICurrencyService CurrencyService
+@inject IHoldingsRepository HoldingsRepository
 @inject CurrencyPreference CurrencyPreference
 
 <PageTitle>Portfolio</PageTitle>
@@ -38,6 +39,10 @@ var currentPortfolio = loadedPortfolio!;
 @if (addSuccessMessage is not null)
 {
     <div class="alert alert-success" role="status">@addSuccessMessage</div>
+}
+@if (removeErrorMessage is not null)
+{
+    <div class="alert alert-danger" role="alert">@removeErrorMessage</div>
 }
 
 <div class="portfolio-heading">
@@ -359,6 +364,7 @@ var currentPortfolio = loadedPortfolio!;
     private string? editErrorMessage;
     private bool isEditing;
     private Guid? pendingRemovalId;
+    private string? removeErrorMessage;
 
     protected override async Task OnInitializedAsync()
     {
@@ -469,6 +475,7 @@ var currentPortfolio = loadedPortfolio!;
     private void RequestRemoveHolding(Holding holding)
     {
         pendingRemovalId = holding.Id;
+        removeErrorMessage = null;
     }
 
     private void CancelRemoveHolding()
@@ -476,16 +483,39 @@ var currentPortfolio = loadedPortfolio!;
         pendingRemovalId = null;
     }
 
-    private void RemoveHolding(Holding holding)
+    private async Task RemoveHolding(Holding holding)
     {
         if (loadedPortfolio is null || pendingRemovalId != holding.Id)
         {
             return;
         }
 
+        var originalIndex = loadedPortfolio.Holdings.IndexOf(holding);
         loadedPortfolio.Holdings.Remove(holding);
+        try
+        {
+            await HoldingsRepository.SaveAsync(loadedPortfolio);
+        }
+        catch (IOException)
+        {
+            loadedPortfolio.Holdings.Insert(originalIndex, holding);
+            pendingRemovalId = null;
+            removeErrorMessage = "The holding could not be saved. Check that the holdings file is writable.";
+            ApplySort();
+            return;
+        }
+        catch (UnauthorizedAccessException)
+        {
+            loadedPortfolio.Holdings.Insert(originalIndex, holding);
+            pendingRemovalId = null;
+            removeErrorMessage = "The holding could not be saved because the holdings file is not writable.";
+            ApplySort();
+            return;
+        }
+
         pendingRemovalId = null;
         ApplySort();
+        removeErrorMessage = null;
         addSuccessMessage = $"{holding.Symbol} was removed from your portfolio.";
     }
 
@@ -503,11 +533,41 @@ var currentPortfolio = loadedPortfolio!;
         {
             var buyPriceRate = await GetCurrencyRateAsync(editHoldingCurrency);
             var displayRate = await GetCurrencyRateAsync(selectedCurrency);
+            var originalQuantity = editHolding.Quantity;
+            var originalBuyPrice = editHolding.BuyPrice;
+            var originalDateBought = editHolding.DateBought;
+            var originalFxRate = editHolding.FxRate;
 
             editHolding.Quantity = editHoldingDraft.Quantity;
             editHolding.BuyPrice = editHoldingDraft.BuyPrice / buyPriceRate;
             editHolding.DateBought = editHoldingDraft.DateBought;
             editHolding.FxRate = displayRate;
+
+            try
+            {
+                await HoldingsRepository.SaveAsync(loadedPortfolio!);
+            }
+            catch (IOException)
+            {
+                // If it fails to save edit changes, rollback to the original value
+                // Fixes UI consistency
+                editHolding.Quantity = originalQuantity;
+                editHolding.BuyPrice = originalBuyPrice;
+                editHolding.DateBought = originalDateBought;
+                editHolding.FxRate = originalFxRate;
+                editErrorMessage = "The holding could not be saved. Check that the holdings file is writable.";
+                return;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                editHolding.Quantity = originalQuantity;
+                editHolding.BuyPrice = originalBuyPrice;
+                editHolding.DateBought = originalDateBought;
+                editHolding.FxRate = originalFxRate;
+                editErrorMessage = "The holding could not be saved because the holdings file is not writable.";
+                return;
+            }
+
             ApplySort();
             addSuccessMessage = $"{editHolding.Symbol} was updated.";
             CloseEditHoldingModal();
@@ -569,6 +629,23 @@ var currentPortfolio = loadedPortfolio!;
             }
 
             loadedPortfolio.Holdings.Add(holding);
+            try
+            {
+                await HoldingsRepository.SaveAsync(loadedPortfolio);
+            }
+            catch (IOException)
+            {
+                loadedPortfolio.Holdings.Remove(holding);
+                addErrorMessage = "The holding could not be saved. Check that the holdings file is writable.";
+                return;
+            }
+            catch (UnauthorizedAccessException)
+            {
+                loadedPortfolio.Holdings.Remove(holding);
+                addErrorMessage = "The holding could not be saved because the holdings file is not writable.";
+                return;
+            }
+
             ApplySort();
             addSuccessMessage = holding.Quote is null
                 ? $"{holding.Symbol} was added, but its live price is unavailable."
