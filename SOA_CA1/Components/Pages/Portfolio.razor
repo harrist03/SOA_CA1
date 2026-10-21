@@ -25,11 +25,11 @@ else if (errorMessage is not null)
         </div>
     </section>
 }
-else if (loadedPortfolio is null || loadedPortfolio.Holdings.Count == 0)
+else if (loadedPortfolio is null)
 {
     <section class="portfolio-page" aria-labelledby="portfolio-heading">
         <h1 id="portfolio-heading">My Portfolio</h1>
-        <p class="text-muted mb-0">No holdings have been added yet.</p>
+        <p class="text-muted mb-0">Your portfolio could not be loaded.</p>
     </section>
 }
 else
@@ -254,8 +254,20 @@ var currentPortfolio = loadedPortfolio!;
         </div>
     </div>
 
-    <div class="holdings-table-container">
-        <table class="holdings-table">
+    @if (currentPortfolio.Holdings.Count == 0)
+    {
+        <div class="portfolio-empty-state">
+            <h2>No holdings yet</h2>
+            <p class="text-muted mb-0">Add your first stock to start tracking your portfolio.</p>
+            <button class="btn btn-primary" type="button" @onclick="OpenAddHoldingModal">
+                Add your first holding
+            </button>
+        </div>
+    }
+    else
+    {
+        <div class="holdings-table-container">
+            <table class="holdings-table">
             <thead>
                 <tr>
                     <th scope="col">
@@ -334,8 +346,9 @@ var currentPortfolio = loadedPortfolio!;
                     </tr>
                 }
             </tbody>
-        </table>
-    </div>
+            </table>
+        </div>
+    }
 </section>
 }
 
